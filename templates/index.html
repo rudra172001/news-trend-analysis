@@ -1,0 +1,532 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>News Trend Analysis</title>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --bg:       #0D1117;
+      --surface:  #161B22;
+      --border:   #21262D;
+      --text:     #E2E8F0;
+      --muted:    #4A5568;
+      --accent:   #63B3ED;
+      --red:      #FC8181;
+      --green:    #68D391;
+    }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      min-height: 100vh;
+    }
+
+    /* ── Scrolling ticker ──────────────────────────────────────────────────── */
+    .ticker-wrap {
+      background: #0a0f15;
+      border-bottom: 1px solid var(--border);
+      overflow: hidden;
+      height: 34px;
+      display: flex;
+      align-items: center;
+    }
+    .ticker-label {
+      background: #E53E3E;
+      color: #fff;
+      font-size: 0.68rem;
+      font-weight: 700;
+      letter-spacing: 1px;
+      padding: 0 0.9rem;
+      height: 100%;
+      display: flex;
+      align-items: center;
+      flex-shrink: 0;
+      text-transform: uppercase;
+      gap: 0.4rem;
+    }
+    .ticker-label .dot {
+      width: 7px; height: 7px;
+      background: #fff;
+      border-radius: 50%;
+      animation: blink 1s infinite;
+    }
+    @keyframes blink { 0%,100%{opacity:1} 50%{opacity:0.2} }
+
+    .ticker-track {
+      display: flex;
+      white-space: nowrap;
+      animation: scroll-left 60s linear infinite;
+    }
+    .ticker-track:hover { animation-play-state: paused; }
+    @keyframes scroll-left {
+      0%   { transform: translateX(0); }
+      100% { transform: translateX(-50%); }
+    }
+    .ticker-item {
+      font-size: 0.78rem;
+      color: #A0AEC0;
+      padding: 0 2rem;
+    }
+    .ticker-item span { color: var(--accent); margin-right: 0.4rem; }
+
+    /* ── Header ────────────────────────────────────────────────────────────── */
+    header {
+      background: linear-gradient(135deg, #0F2027, #203A43, #2C5364);
+      padding: 1.25rem 2rem;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      flex-wrap: wrap;
+      gap: 0.75rem;
+      border-bottom: 1px solid rgba(255,255,255,0.06);
+    }
+    header h1 { font-size: 1.4rem; font-weight: 700; color: #fff; }
+    header p  { font-size: 0.78rem; color: #718096; margin-top: 0.15rem; }
+
+    .live-badge {
+      display: flex; align-items: center; gap: 0.5rem;
+      background: rgba(229,62,62,0.15);
+      border: 1px solid rgba(229,62,62,0.4);
+      color: var(--red);
+      border-radius: 999px;
+      padding: 0.3rem 0.9rem;
+      font-size: 0.75rem;
+      font-weight: 700;
+    }
+    .live-badge .live-dot {
+      width: 8px; height: 8px;
+      background: var(--red);
+      border-radius: 50%;
+      animation: blink 1s infinite;
+    }
+
+    /* ── Layout ────────────────────────────────────────────────────────────── */
+    main {
+      max-width: 1300px;
+      margin: 1.5rem auto;
+      padding: 0 1.25rem;
+      display: grid;
+      gap: 1.25rem;
+    }
+
+    .row-top    { display: grid; grid-template-columns: 1fr 330px; gap: 1.25rem; }
+    .row-bottom { display: grid; grid-template-columns: 1fr 1fr;   gap: 1.25rem; }
+    @media (max-width: 900px) {
+      .row-top, .row-bottom { grid-template-columns: 1fr; }
+    }
+
+    /* ── Card ──────────────────────────────────────────────────────────────── */
+    .card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      overflow: hidden;
+    }
+    .card-header {
+      padding: 0.8rem 1rem 0.7rem;
+      border-bottom: 1px solid var(--border);
+      display: flex; align-items: center; justify-content: space-between;
+    }
+    .card-header h2 { font-size: 0.875rem; font-weight: 600; color: #CBD5E0; }
+    .card-sub { font-size: 0.7rem; color: var(--muted); }
+
+    /* ── News Player ───────────────────────────────────────────────────────── */
+    .player-header {
+      padding: 0.8rem 1rem;
+      border-bottom: 1px solid var(--border);
+      display: flex; align-items: center; justify-content: space-between;
+      gap: 0.75rem;
+    }
+    .player-header h2 { font-size: 0.875rem; font-weight: 600; color: #CBD5E0; }
+
+    /* Refresh countdown */
+    #refresh-bar-wrap {
+      flex: 1; max-width: 140px;
+      height: 3px;
+      background: var(--border);
+      border-radius: 99px;
+      overflow: hidden;
+    }
+    #refresh-bar {
+      height: 100%;
+      width: 100%;
+      background: linear-gradient(90deg, #63B3ED, #FC8181);
+      border-radius: 99px;
+      transition: width 1s linear;
+    }
+    #refresh-countdown { font-size: 0.68rem; color: var(--muted); white-space: nowrap; }
+
+    /* Featured card (top 3 big cards) */
+    .featured-grid {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 0.75rem;
+      padding: 0.9rem;
+      border-bottom: 1px solid var(--border);
+    }
+    @media (max-width: 650px) { .featured-grid { grid-template-columns: 1fr; } }
+
+    .feat-card {
+      background: var(--bg);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      overflow: hidden;
+      display: flex;
+      flex-direction: column;
+      transition: border-color 0.2s;
+    }
+    .feat-card:hover { border-color: var(--accent); }
+
+    .feat-img {
+      width: 100%; height: 110px;
+      object-fit: cover;
+      background: #0a0f15;
+      display: block;
+    }
+    .feat-img-placeholder {
+      width: 100%; height: 110px;
+      background: linear-gradient(135deg, #1a2a3a 0%, #0a1628 100%);
+      display: flex; align-items: center; justify-content: center;
+      font-size: 2rem;
+    }
+
+    .feat-body { padding: 0.7rem; flex: 1; display: flex; flex-direction: column; gap: 0.4rem; }
+    .feat-title {
+      font-size: 0.78rem; font-weight: 600; color: var(--text);
+      line-height: 1.4;
+      display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical;
+      overflow: hidden;
+    }
+    .feat-title a { color: inherit; text-decoration: none; }
+    .feat-title a:hover { color: var(--accent); }
+    .feat-meta {
+      margin-top: auto;
+      display: flex; align-items: center; justify-content: space-between;
+      gap: 0.4rem;
+    }
+
+    /* Category badge */
+    .cat-badge {
+      font-size: 0.6rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.5px;
+      padding: 0.15rem 0.5rem; border-radius: 4px;
+    }
+    .cat-Politics  { background:#2D3748; color:#90CDF4; }
+    .cat-World     { background:#1A3038; color:#68D391; }
+    .cat-Business  { background:#2D2016; color:#F6AD55; }
+    .cat-Tech      { background:#1E1B38; color:#B794F4; }
+    .cat-Sports    { background:#1A2E1A; color:#68D391; }
+    .cat-News      { background:#21262D; color:#A0AEC0; }
+
+    .feat-time { font-size: 0.65rem; color: var(--muted); }
+
+    /* Scrollable feed list */
+    .feed-list {
+      max-height: 320px;
+      overflow-y: auto;
+    }
+    .feed-list::-webkit-scrollbar { width: 3px; }
+    .feed-list::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
+
+    .feed-item {
+      display: flex; align-items: flex-start; gap: 0.75rem;
+      padding: 0.65rem 1rem;
+      border-bottom: 1px solid #1A202C;
+      transition: background 0.15s;
+    }
+    .feed-item:last-child { border-bottom: none; }
+    .feed-item:hover { background: #1A202C; }
+
+    .feed-num {
+      font-size: 0.65rem; color: var(--muted); font-weight: 700;
+      min-width: 18px; padding-top: 2px; text-align: right;
+    }
+    .feed-content { flex: 1; min-width: 0; }
+    .feed-title {
+      font-size: 0.78rem; color: #CBD5E0; line-height: 1.4;
+      white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+    }
+    .feed-title a { color: inherit; text-decoration: none; }
+    .feed-title a:hover { color: var(--accent); }
+    .feed-meta { display: flex; align-items: center; gap: 0.5rem; margin-top: 2px; }
+    .feed-source { font-size: 0.67rem; color: var(--accent); font-weight: 500; }
+    .feed-time   { font-size: 0.67rem; color: var(--muted); }
+
+    /* New item flash animation */
+    @keyframes flash-in {
+      from { background: rgba(99,179,237,0.12); }
+      to   { background: transparent; }
+    }
+    .feed-item.new { animation: flash-in 1.5s ease-out; }
+
+    /* ── Keywords table ────────────────────────────────────────────────────── */
+    table { width: 100%; border-collapse: collapse; font-size: 0.8rem; }
+    th {
+      text-align: left; padding: 0.45rem 0.75rem;
+      background: var(--bg); color: var(--muted);
+      font-size: 0.65rem; font-weight: 600;
+      text-transform: uppercase; letter-spacing: 0.5px;
+      border-bottom: 1px solid var(--border);
+    }
+    td { padding: 0.48rem 0.75rem; border-bottom: 1px solid #1A202C; color: #CBD5E0; }
+    tr:last-child td { border-bottom: none; }
+    tr:hover td { background: #1A202C; }
+
+    .rank {
+      display:inline-flex; align-items:center; justify-content:center;
+      width:20px; height:20px; border-radius:50%;
+      font-size:0.62rem; font-weight:700;
+      background:#1E3A5F; color:#63B3ED;
+    }
+    .rank.top { background:#3D1515; color:var(--red); }
+
+    .bar-wrap { background: var(--border); border-radius:99px; height:4px; min-width:50px; }
+    .bar-fill { height:4px; border-radius:99px; background:#4299E1; }
+    .bar-fill.top { background:var(--red); }
+
+    /* ── Chart ─────────────────────────────────────────────────────────────── */
+    .chart-img { width:100%; height:auto; border-radius:6px; display:block; }
+
+    /* ── Error ─────────────────────────────────────────────────────────────── */
+    .error-box {
+      background:#1A0A0A; border:1px solid #742A2A;
+      color:var(--red); border-radius:8px; padding:1rem 1.25rem; font-size:0.85rem;
+    }
+  </style>
+</head>
+<body>
+
+<!-- ── Scrolling ticker ─────────────────────────────────────────────────────── -->
+<div class="ticker-wrap">
+  <div class="ticker-label"><span class="dot"></span> BREAKING</div>
+  <div style="overflow:hidden; flex:1;">
+    <div class="ticker-track" id="ticker-track">
+      {% for h in headlines %}
+      <span class="ticker-item"><span>▸</span>{{ h.title }}</span>
+      {% endfor %}
+      {% for h in headlines %}
+      <span class="ticker-item"><span>▸</span>{{ h.title }}</span>
+      {% endfor %}
+    </div>
+  </div>
+</div>
+
+<!-- ── Header ───────────────────────────────────────────────────────────────── -->
+<header>
+  <div>
+    <h1>📰 News Trend Analysis</h1>
+    <p>Real-time headlines &amp; keyword trends — US top stories</p>
+  </div>
+  <div style="display:flex;align-items:center;gap:0.75rem;flex-wrap:wrap;">
+    <span style="font-size:0.72rem;color:var(--muted);">{{ updated_at }}</span>
+    <span class="live-badge"><span class="live-dot"></span> LIVE</span>
+  </div>
+</header>
+
+<main>
+
+  {% if error %}
+  <div class="error-box">
+    <strong>Error loading data:</strong> {{ error }}<br/>
+    <small>Check that your <code>NEWS_API_KEY</code> environment variable is set correctly.</small>
+  </div>
+  {% endif %}
+
+  {% if chart_b64 %}
+
+  <!-- ── Row 1: News Player + Keywords ──────────────────────────────────── -->
+  <div class="row-top">
+
+    <!-- Live News Player -->
+    <div class="card">
+      <div class="player-header">
+        <h2>📺 Live News Feed</h2>
+        <div style="display:flex;align-items:center;gap:0.6rem;">
+          <span id="refresh-countdown">refreshing in 60s</span>
+          <div id="refresh-bar-wrap"><div id="refresh-bar"></div></div>
+        </div>
+      </div>
+
+      <!-- Top 3 featured cards -->
+      <div class="featured-grid" id="featured-grid">
+        {% for h in headlines[:3] %}
+        <div class="feat-card">
+          {% if h.image %}
+          <img class="feat-img" src="{{ h.image }}" alt="" loading="lazy"
+               onerror="this.style.display='none';this.nextElementSibling.style.display='flex'"/>
+          <div class="feat-img-placeholder" style="display:none;">📰</div>
+          {% else %}
+          <div class="feat-img-placeholder">📰</div>
+          {% endif %}
+          <div class="feat-body">
+            <div class="feat-title"><a href="{{ h.url }}" target="_blank" rel="noopener">{{ h.title }}</a></div>
+            <div class="feat-meta">
+              <span class="cat-badge cat-{{ h.category }}">{{ h.category }}</span>
+              <span class="feat-time">{{ h.time_ago }}</span>
+            </div>
+          </div>
+        </div>
+        {% endfor %}
+      </div>
+
+      <!-- Scrollable feed list (remaining articles) -->
+      <div class="feed-list" id="feed-list">
+        {% for h in headlines[3:] %}
+        <div class="feed-item">
+          <span class="feed-num">{{ loop.index + 3 }}</span>
+          <div class="feed-content">
+            <div class="feed-title"><a href="{{ h.url }}" target="_blank" rel="noopener">{{ h.title }}</a></div>
+            <div class="feed-meta">
+              <span class="feed-source">{{ h.source }}</span>
+              <span class="feed-time">{{ h.time_ago }}</span>
+            </div>
+          </div>
+        </div>
+        {% endfor %}
+      </div>
+    </div>
+
+    <!-- Keywords table -->
+    <div class="card">
+      <div class="card-header">
+        <h2>🔑 Top 15 Keywords</h2>
+        <span class="card-sub">from today's headlines</span>
+      </div>
+      <div style="padding:0;">
+        <table>
+          <thead>
+            <tr><th>#</th><th>Keyword</th><th>Count</th><th>Share</th></tr>
+          </thead>
+          <tbody>
+            {% for row in freq_rows %}
+            <tr>
+              <td><span class="rank {% if loop.index <= 5 %}top{% endif %}">{{ loop.index }}</span></td>
+              <td><strong>{{ row.word }}</strong></td>
+              <td>{{ row.count }}</td>
+              <td>
+                <div style="display:flex;align-items:center;gap:5px;">
+                  <div class="bar-wrap" style="width:60px;">
+                    <div class="bar-fill {% if loop.index <= 5 %}top{% endif %}"
+                         style="width:{{ [row.percentage * 8, 100] | min }}%;"></div>
+                  </div>
+                  <span style="font-size:0.68rem;color:var(--muted);">{{ row.percentage }}%</span>
+                </div>
+              </td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+  </div><!-- /row-top -->
+
+  <!-- ── Row 2: Bar Chart (full width) ─────────────────────────────────── -->
+  <div class="card">
+    <div class="card-header"><h2>📊 Trending Keywords — Bar Chart</h2></div>
+    <div style="padding:0.75rem;">
+      <img class="chart-img" src="data:image/png;base64,{{ chart_b64 }}" alt="Trending keywords"/>
+    </div>
+  </div>
+
+  {% endif %}
+
+</main>
+
+<!-- ── Live auto-refresh (every 60 seconds) ───────────────────────────────── -->
+<script>
+  const REFRESH_SECS = 60;
+  let countdown = REFRESH_SECS;
+  const barEl       = document.getElementById('refresh-bar');
+  const countdownEl = document.getElementById('refresh-countdown');
+
+  // Tick every second — update bar + label
+  const ticker = setInterval(() => {
+    countdown--;
+    const pct = (countdown / REFRESH_SECS) * 100;
+    if (barEl)       barEl.style.width = pct + '%';
+    if (countdownEl) countdownEl.textContent = `refreshing in ${countdown}s`;
+
+    if (countdown <= 0) {
+      countdown = REFRESH_SECS;
+      loadLatestHeadlines();
+    }
+  }, 1000);
+
+  // Fetch new headlines from the API endpoint and update the feed list
+  async function loadLatestHeadlines() {
+    try {
+      const res  = await fetch('/api/headlines');
+      const data = await res.json();
+      if (data.status !== 'ok') return;
+
+      const articles = data.articles;
+      if (!articles.length) return;
+
+      // ── Update featured cards ──
+      const featGrid = document.getElementById('featured-grid');
+      if (featGrid) {
+        featGrid.innerHTML = articles.slice(0, 3).map(h => `
+          <div class="feat-card">
+            ${h.image
+              ? `<img class="feat-img" src="${h.image}" alt="" loading="lazy"
+                      onerror="this.style.display='none';this.nextElementSibling.style.display='flex'"/>
+                 <div class="feat-img-placeholder" style="display:none;">📰</div>`
+              : `<div class="feat-img-placeholder">📰</div>`}
+            <div class="feat-body">
+              <div class="feat-title">
+                <a href="${h.url}" target="_blank" rel="noopener">${escHtml(h.title)}</a>
+              </div>
+              <div class="feat-meta">
+                <span class="cat-badge cat-${h.category}">${h.category}</span>
+                <span class="feat-time">${h.time_ago}</span>
+              </div>
+            </div>
+          </div>
+        `).join('');
+      }
+
+      // ── Update feed list — flash new items ──
+      const feedList = document.getElementById('feed-list');
+      if (feedList) {
+        feedList.innerHTML = articles.slice(3).map((h, i) => `
+          <div class="feed-item new">
+            <span class="feed-num">${i + 4}</span>
+            <div class="feed-content">
+              <div class="feed-title">
+                <a href="${h.url}" target="_blank" rel="noopener">${escHtml(h.title)}</a>
+              </div>
+              <div class="feed-meta">
+                <span class="feed-source">${escHtml(h.source)}</span>
+                <span class="feed-time">${h.time_ago}</span>
+              </div>
+            </div>
+          </div>
+        `).join('');
+      }
+
+      // ── Update ticker ──
+      const track = document.getElementById('ticker-track');
+      if (track) {
+        const items = articles.map(h =>
+          `<span class="ticker-item"><span>▸</span>${escHtml(h.title)}</span>`
+        ).join('');
+        track.innerHTML = items + items;
+      }
+
+    } catch (err) {
+      console.warn('Auto-refresh failed:', err);
+    }
+  }
+
+  function escHtml(str) {
+    return str.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')
+              .replace(/"/g,'&quot;').replace(/'/g,'&#039;');
+  }
+</script>
+
+</body>
+</html>

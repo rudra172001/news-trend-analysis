@@ -1,0 +1,23 @@
+# Generated data files — no need to commit these
+data/
+
+# Python cache
+__pycache__/
+*.pyc
+*.pyo
+.pytest_cache/
+
+# Virtual environments
+venv/
+.env/
+env/
+
+# Jupyter checkpoints
+.ipynb_checkpoints/
+
+# Vercel
+.vercel/
+
+# Environment variable files
+.env
+*.env
