@@ -169,3 +169,64 @@ You can easily tweak the project for different results:
 ## License
 
 MIT — free to use and modify.
+
+---
+
+## About the Author
+
+**Rudra Patel**
+Queens, New York | US Immigrant – No Sponsorship Required
+📧 [rudrapatel172001@gmail.com](mailto:rudrapatel172001@gmail.com) | 📞 +1 848 248 0546
+🔗 [LinkedIn](https://www.linkedin.com/in/rudrapatel172001) | 🐙 [GitHub](https://github.com/rudra172001)
+
+---
+
+### Education
+
+**Charusat University** — B.Tech, Computer Science & Engineering | Gujarat, India
+- GPA: 3.3/4.0
+- Coursework: Machine Learning, Artificial Intelligence, Data Science & Analytics, Database Management Systems, Data Structures & Algorithms, Discrete Mathematics, Software Engineering
+
+---
+
+### Experience
+
+**RP Constructions** — Web Developer & Systems/IT Support Intern | Feb 2024 – Sept 2024 | Gujarat, India
+- Spearheaded the full-stack design and deployment of the company website, translating business requirements into a responsive site that increased online visibility and client engagement.
+- Architected and maintained server infrastructure and network security, configuring firewalls, IP protocols, and DNS settings to ensure reliable system availability and secure company data.
+- Led initiatives to audit, update, and maintain 30+ computer systems across the firm, standardizing software configurations and tracking system performance metrics using Tableau dashboards.
+
+**Codiot Technologies LLP** — Data & Software Developer Intern | Aug 2023 – Jan 2024 | Gujarat, India
+- Developed and optimized RESTful API integrations processing JSON datasets, ensuring efficient data flow between Android clients and back-end analytics services.
+- Analysed user engagement data to identify behavioural trends, contributing to a 25% reduction in app bounce rates through data-driven UI/UX improvements.
+- Collaborated with cross-functional teams in an Agile/Scrum environment, delivering sprint milestones 20% faster through data-backed prioritization of features.
+
+---
+
+### Other Projects
+
+| Project | Stack | Highlights |
+|---|---|---|
+| **Heart Disease Prediction System** | Python, Scikit-learn, Pandas, Matplotlib, Tableau | 92% prediction accuracy on 10,000+ record clinical dataset |
+| **Parking Management System** | Python, SQL, ML, Power BI | Predictive analytics model with automated ETL pipeline and Power BI dashboards |
+| **Smart Irrigation System** | Python, IoT, Raspberry Pi, REST APIs | Reduced manual intervention by 90% via automated threshold-based triggers |
+
+---
+
+### Technical Skills
+
+| Category | Skills |
+|---|---|
+| **Languages** | Python, SQL, Java, R, C/C++, JavaScript, TypeScript, HTML/CSS |
+| **Data & ML** | Pandas, NumPy, Scikit-learn, TensorFlow, Matplotlib, Seaborn, Tableau, Power BI, Excel |
+| **Technologies** | AWS (EC2, S3), Docker, Flask, REST APIs, ETL Pipelines, Git, PostgreSQL |
+| **Developer Tools** | VS Code, Jupyter Notebook, Postman, GitHub, JIRA, Slack |
+
+---
+
+### Certifications
+
+- Machine Learning Certification – DataFlair
+- Python for Data Science & AI – IBM / Coursera
+- AWS Certified Cloud Practitioner (CLF-C02) – DataFlair
+- Docker Essentials: A Developer Introduction – IBM / Cognitive Class
