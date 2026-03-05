@@ -57,6 +57,33 @@ SOURCE_CATEGORY = {
 }
 
 
+# ── Market / sentiment config ─────────────────────────────────────────────────
+
+MARKET_SYMBOLS = [
+    {"symbol": "^GSPC",  "label": "S&P 500",  "type": "index"},
+    {"symbol": "^IXIC",  "label": "Nasdaq",    "type": "index"},
+    {"symbol": "^DJI",   "label": "Dow Jones", "type": "index"},
+    {"symbol": "AAPL",   "label": "AAPL",      "type": "stock"},
+    {"symbol": "MSFT",   "label": "MSFT",      "type": "stock"},
+    {"symbol": "NVDA",   "label": "NVDA",      "type": "stock"},
+    {"symbol": "TSLA",   "label": "TSLA",      "type": "stock"},
+]
+
+BULLISH_WORDS = {
+    "surge","surges","soars","gains","record","rally","rallies","growth",
+    "rises","high","strong","boom","profit","profits","beats","beat",
+    "optimism","recovery","deal","deals","upgrade","positive","expansion",
+    "hiring","investment","breakthrough","bullish",
+}
+BEARISH_WORDS = {
+    "crash","crashes","falls","drops","decline","declines","recession",
+    "fears","fear","plunges","plunge","weak","loss","losses","concern",
+    "concerns","warning","warnings","selloff","sell-off","debt","crisis",
+    "inflation","layoffs","layoff","cut","cuts","downgrade","negative",
+    "tariff","tariffs","bearish","slowdown","default",
+}
+
+
 # ── Pipeline helpers ───────────────────────────────────────────────────────────
 
 def fetch_headlines(country: str = "us", category: str = "general") -> list[dict]:
@@ -154,6 +181,80 @@ def make_bar_chart_b64(freq_df: pd.DataFrame, top_n: int = 20) -> str:
     return base64.b64encode(buf.read()).decode("utf-8")
 
 
+def fetch_market_data() -> list[dict]:
+    """
+    Fetch live prices for major indices and stocks from Yahoo Finance.
+    Uses the unofficial chart API — no API key required.
+    Returns an empty list if the request fails (graceful degradation).
+    """
+    results = []
+    headers = {"User-Agent": "Mozilla/5.0"}
+
+    for item in MARKET_SYMBOLS:
+        try:
+            url  = f"https://query2.finance.yahoo.com/v8/finance/chart/{item['symbol']}?interval=1d&range=2d"
+            resp = requests.get(url, headers=headers, timeout=5)
+            resp.raise_for_status()
+            meta = resp.json()["chart"]["result"][0]["meta"]
+
+            price = meta.get("regularMarketPrice", 0)
+            prev  = meta.get("previousClose") or meta.get("chartPreviousClose", price)
+            change = price - prev
+            pct    = (change / prev * 100) if prev else 0
+
+            results.append({
+                "symbol":    item["label"],
+                "type":      item["type"],
+                "price":     price,
+                "change":    round(change, 2),
+                "pct":       round(pct, 2),
+                "direction": "up" if change >= 0 else "down",
+                "price_fmt": f"{price:,.2f}" if item["type"] == "stock" else f"{price:,.0f}",
+            })
+        except Exception:
+            # Skip this symbol silently — don't crash the whole page
+            continue
+
+    return results
+
+
+def compute_news_sentiment(articles: list[dict]) -> dict:
+    """
+    Scan headline titles for bullish/bearish financial keywords
+    and return a sentiment summary dict.
+    This is a simple keyword signal — NOT a financial forecast.
+    """
+    bullish_count = 0
+    bearish_count = 0
+
+    for a in articles:
+        words = set(re.sub(r"[^a-z\s]", " ", a["title"].lower()).split())
+        bullish_count += len(words & BULLISH_WORDS)
+        bearish_count += len(words & BEARISH_WORDS)
+
+    score = bullish_count - bearish_count
+    total = bullish_count + bearish_count or 1
+
+    if score > 2:
+        label, color = "Bullish",  "#68D391"
+    elif score < -2:
+        label, color = "Bearish",  "#FC8181"
+    else:
+        label, color = "Neutral",  "#F6AD55"
+
+    # Gauge position: 0 = fully bearish, 50 = neutral, 100 = fully bullish
+    gauge = min(max(int(50 + score * 5), 0), 100)
+
+    return {
+        "score":         score,
+        "label":         label,
+        "color":         color,
+        "bullish_count": bullish_count,
+        "bearish_count": bearish_count,
+        "gauge":         gauge,
+    }
+
+
 def time_ago(iso_str: str) -> str:
     """Convert ISO timestamp to a human-readable 'X mins ago' string."""
     try:
@@ -172,19 +273,21 @@ def time_ago(iso_str: str) -> str:
 
 @app.route("/")
 def index():
-    error      = None
-    chart_b64  = None
-    freq_rows  = []
-    headlines  = []
-    updated_at = datetime.now(timezone.utc).strftime("%d %b %Y, %H:%M UTC")
+    error       = None
+    chart_b64   = None
+    freq_rows   = []
+    headlines   = []
+    market_data = {"indices": [], "stocks": []}
+    sentiment   = {}
+    updated_at  = datetime.now(timezone.utc).strftime("%d %b %Y, %H:%M UTC")
 
     try:
         articles  = fetch_headlines(country="us", category="general")
         freq_df   = analyse_keywords(articles, top_n=30)
         chart_b64 = make_bar_chart_b64(freq_df, top_n=20)
         freq_rows = freq_df.head(15).to_dict(orient="records")
+        sentiment = compute_news_sentiment(articles)
 
-        # Attach a human-readable time string to each article
         for a in articles:
             a["time_ago"] = time_ago(a["published_at"])
         headlines = articles
@@ -192,13 +295,25 @@ def index():
     except Exception as exc:
         error = str(exc)
 
+    # Fetch market data separately so a Yahoo Finance outage never breaks the page
+    try:
+        all_market  = fetch_market_data()
+        market_data = {
+            "indices": [m for m in all_market if m["type"] == "index"],
+            "stocks":  [m for m in all_market if m["type"] == "stock"],
+        }
+    except Exception:
+        pass
+
     return render_template(
         "index.html",
-        chart_b64  = chart_b64,
-        freq_rows  = freq_rows,
-        headlines  = headlines,
-        updated_at = updated_at,
-        error      = error,
+        chart_b64   = chart_b64,
+        freq_rows   = freq_rows,
+        headlines   = headlines,
+        updated_at  = updated_at,
+        error       = error,
+        market_data = market_data,
+        sentiment   = sentiment,
     )
 
 
